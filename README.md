@@ -20,7 +20,25 @@
 
 ## インストール
 
-開発中の本リポジトリを別プロジェクトから追従利用する場合は editable install を使います。
+### GitHub から clone してインストールする
+
+通常は以下の手順で clone して editable install します。
+
+```bash
+git clone https://github.com/februa/scene_renderer.git
+cd scene_renderer
+pip install -e .
+```
+
+開発用依存も含めて入れる場合は以下です。
+
+```bash
+git clone https://github.com/februa/scene_renderer.git
+cd scene_renderer
+pip install -e ".[dev]"
+```
+
+### 既に clone 済みのローカルパスからインストールする
 
 ```bash
 pip install -e /path/to/scene_renderer
@@ -32,10 +50,31 @@ pip install -e /path/to/scene_renderer
 pip install -e "/path/to/scene_renderer[dev]"
 ```
 
-Git リポジトリとして利用する場合は、将来的に以下の形で導入できます。
+### Git URL から直接インストールする
 
 ```bash
-pip install git+<repository-url>
+pip install git+https://github.com/februa/scene_renderer.git
+```
+
+## examples
+
+サンプルコードは [examples](./examples) にあります。
+
+- [examples/example_minimal.py](./examples/example_minimal.py)
+  - 最小構成の `Scene + Receiver -> x[ch, t]` を生成する例
+- [examples/example_config_api.py](./examples/example_config_api.py)
+  - 上位設定 API から `AcousticSource` を組み立てる例
+
+最小 example の実行:
+
+```bash
+python examples/example_minimal.py
+```
+
+設定 API example の実行:
+
+```bash
+python examples/example_config_api.py
 ```
 
 ## 利用例
@@ -88,6 +127,7 @@ x = SceneRenderer().render(scene, receiver, axis_t)
 ```bash
 python -m pytest -q
 python examples/example_minimal.py
+python examples/example_config_api.py
 ```
 
 ## 実装範囲
