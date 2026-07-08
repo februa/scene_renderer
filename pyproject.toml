@@ -26,10 +26,14 @@ classifiers = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pyright>=1.1.380",
 ]
 
 [tool.setuptools]
 include-package-data = false
+
+[tool.setuptools.package-data]
+scene_renderer = ["py.typed"]
 
 [tool.setuptools.packages.find]
 include = ["scene_renderer*"]

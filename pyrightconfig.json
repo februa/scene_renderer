@@ -1,0 +1,6 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["scene_renderer", "tests", "examples"],
+  "exclude": [".venv", "build", "dist"]
+}

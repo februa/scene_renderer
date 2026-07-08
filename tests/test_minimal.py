@@ -16,6 +16,7 @@ from scene_renderer import (
     ToneSpectrum,
 )
 from scene_renderer.scene import AmbientField
+from scene_renderer.renderer import SensorNoiseGenerator
 
 
 def make_component(f: float = 1000.0) -> SourceComponent:
@@ -135,3 +136,17 @@ def test_ambient_field_rejects_non_positive_semidefinite_covariance() -> None:
             amplitude=1.0,
             covariance=np.array([[1.0, 2.0], [2.0, 1.0]]),
         )
+
+
+def test_scene_renderer_rejects_nan_axis() -> None:
+    receiver = Receiver(StaticPose([0.0, 0.0, 0.0]), LinearArray(2, 0.1))
+    scene = Scene([], [], FreeField(1500.0))
+    # NaN を含む時間軸では fs と位相回転 exp(j 2π f t) が定義できないため、入口で拒否する。
+    with pytest.raises(ValueError):
+        SceneRenderer().render(scene, receiver, np.array([0.0, np.nan, 0.2]))
+
+
+def test_sensor_noise_generator_rejects_negative_amplitude() -> None:
+    # センサ雑音振幅は将来の標準偏差として扱う量なので、負値は無音化ではなく入力エラーにする。
+    with pytest.raises(ValueError):
+        SensorNoiseGenerator(amplitude=np.array([0.0, -1.0]))
