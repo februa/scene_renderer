@@ -76,8 +76,10 @@ class SourceFieldContributor(MultiChannelContributor):
             SourceRenderer、PropagationModel、ArrayProjector が送出する例外を伝搬する。
         """
 
+        # projector が広帯域 fractional delay FIR に必要とする halo を先に確保し、chunk 境界でも同じ信号値を生成する。
+        sample_margin = self.projector_factory.required_sample_margin(receiver, scene.environment, fs)
         # 音源波形、伝搬幾何、アレイ投影を分けることで、各段の shape と物理量を局所化する。
-        rendered_sources = self.source_renderer.render(scene.sources, axis_t)
+        rendered_sources = self.source_renderer.render(scene.sources, axis_t, fs=fs, sample_margin=sample_margin)
         propagated_sources = self.propagation_model.propagate(
             rendered_sources=rendered_sources,
             environment=scene.environment,

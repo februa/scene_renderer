@@ -62,6 +62,7 @@ class FreeFieldPropagation(PropagationModel):
                     paths=[
                         PropagationPath(
                             signal=rendered.signal,
+                            center_slice=rendered.center_slice,
                             direction_world=direction_world,
                             # delay = distance / c。最小構成では保持のみで、時間波形への絶対遅延はまだ反映しない。
                             delay=distance / environment.c,

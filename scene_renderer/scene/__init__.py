@@ -7,7 +7,7 @@ from .source import (
 )
 from .ambient import AmbientField
 from .environment import Environment, FreeField
-from .spectrum import Spectrum, ToneSpectrum
+from .spectrum import BandLimitedNoiseSpectrum, CustomNoiseSpectrum, NoiseSpectrum, PinkNoiseSpectrum, Spectrum, ToneSpectrum
 from .envelope import Envelope, ConstantEnvelope
 from .trajectory import (
     Pose,
@@ -27,7 +27,11 @@ __all__ = [
     "Environment",
     "FreeField",
     "Spectrum",
+    "NoiseSpectrum",
     "ToneSpectrum",
+    "BandLimitedNoiseSpectrum",
+    "PinkNoiseSpectrum",
+    "CustomNoiseSpectrum",
     "Envelope",
     "ConstantEnvelope",
     "Pose",

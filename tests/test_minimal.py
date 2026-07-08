@@ -5,11 +5,13 @@ import pytest
 
 from scene_renderer import (
     AcousticSource,
+    BandLimitedNoiseSpectrum,
     ConstantEnvelope,
     FreeField,
     LinearArray,
     Receiver,
     Scene,
+    PinkNoiseSpectrum,
     SceneRenderer,
     SourceComponent,
     StaticPose,
@@ -150,3 +152,60 @@ def test_sensor_noise_generator_rejects_negative_amplitude() -> None:
     # センサ雑音振幅は将来の標準偏差として扱う量なので、負値は無音化ではなく入力エラーにする。
     with pytest.raises(ValueError):
         SensorNoiseGenerator(amplitude=np.array([0.0, -1.0]))
+
+
+
+def test_band_limited_noise_spectrum_response_mask() -> None:
+    spectrum = BandLimitedNoiseSpectrum(f_low_hz=100.0, f_high_hz=300.0)
+    freq_axis = np.array([0.0, 100.0, 200.0, 300.0, 400.0])
+    # NoiseSpectrum.evaluate は FIR 設計用の振幅応答なので、通過帯域内だけ 1 になることを確認する。
+    np.testing.assert_allclose(np.abs(spectrum.evaluate(freq_axis)), [0.0, 1.0, 1.0, 1.0, 0.0])
+
+
+def test_pink_noise_spectrum_uses_amplitude_inverse_sqrt_frequency() -> None:
+    spectrum = PinkNoiseSpectrum(f_low_hz=100.0, f_high_hz=1000.0, reference_frequency_hz=100.0)
+    freq_axis = np.array([100.0, 400.0])
+    response = np.abs(spectrum.evaluate(freq_axis))
+    # PSD 1/f のピンクノイズでは、振幅応答は 1/sqrt(f) になるため 100 Hz は 400 Hz の 2 倍になる。
+    np.testing.assert_allclose(response[0] / response[1], 2.0, atol=1e-12)
+
+
+def test_noise_spectrum_requires_seed() -> None:
+    # 広帯域ノイズは sample index と seed で決定論的に生成するため、seed 未指定は API エラーにする。
+    with pytest.raises(ValueError):
+        SourceComponent(BandLimitedNoiseSpectrum(100.0, 300.0), ConstantEnvelope(), amplitude=1.0)
+
+
+def test_broadband_render_is_chunk_partition_independent() -> None:
+    fs = 4096.0
+    n_sample = 1024
+    chunk_size = 256
+    receiver = Receiver(
+        StaticPose([0.0, 0.0, 0.0], heading_deg=0.0),
+        LinearArray(n_ch=3, spacing=0.15, axis=1, centered=True),
+    )
+    component = SourceComponent(
+        BandLimitedNoiseSpectrum(f_low_hz=200.0, f_high_hz=900.0),
+        ConstantEnvelope(),
+        amplitude=0.5,
+        noise_seed=12345,
+        noise_filter_length=129,
+    )
+    scene = Scene(
+        sources=[AcousticSource.from_relative_bearing(90.0, 1000.0, receiver.trajectory.pose(0.0), [component])],
+        ambient_fields=[],
+        environment=FreeField(1500.0),
+    )
+    full_axis = np.arange(n_sample) / fs
+    full = SceneRenderer().render(scene, receiver, full_axis)
+
+    chunks = []
+    for start in range(0, n_sample, chunk_size):
+        # 呼び出し側は絶対 sample index に対応する axis_t を渡す。ノイズ値と FIR halo は renderer 側で決定論的に補う。
+        chunk_axis = (start + np.arange(chunk_size)) / fs
+        chunks.append(SceneRenderer().render(scene, receiver, chunk_axis))
+    chunked = np.concatenate(chunks, axis=1)
+    np.testing.assert_allclose(chunked, full, atol=2e-5)
+    assert full.shape == (3, n_sample)
+    assert full.dtype == np.complex64
+    assert float(np.max(np.abs(full))) > 0.0

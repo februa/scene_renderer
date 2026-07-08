@@ -7,7 +7,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .envelope import Envelope
-from .spectrum import Spectrum
+from .spectrum import NoiseSpectrum, Spectrum
 from .trajectory import Pose, StaticPosition, Trajectory
 
 
@@ -76,13 +76,16 @@ class SourceComponent:
     振幅 dB 指定を受け取り、SourceRenderer が使う実効振幅へ解決する。
 
     音源位置、受波器、伝搬、アレイ投影は責務に含めない。
-    信号処理上は、基準音源信号 s(t) = A env(t) exp(j 2π f t) の A と形状を定義する。
+    信号処理上は、基準音源信号 s(t) = A env(t) exp(j 2π f t) または
+    広帯域ノイズ信号の A、seed、FIR 長を定義する。
     """
 
     spectrum: Spectrum
     envelope: Envelope
     amplitude: float | None = 1.0
     level_db: float | None = None
+    noise_seed: int | None = None
+    noise_filter_length: int = 257
 
     def __post_init__(self) -> None:
         # 線形振幅と dB 振幅を同時に受けると、どちらを正本にするか曖昧になるため API エラーにする。
@@ -90,6 +93,11 @@ class SourceComponent:
             raise ValueError("Specify either amplitude or level_db, not both")
         if self.amplitude is not None and self.amplitude < 0:
             raise ValueError("amplitude must be non-negative")
+        if self.noise_filter_length < 3 or self.noise_filter_length % 2 == 0:
+            raise ValueError("noise_filter_length must be an odd integer greater than or equal to 3")
+        if isinstance(self.spectrum, NoiseSpectrum) and self.noise_seed is None:
+            # ノイズ波形は chunk 分割非依存にするため、呼び出し順に依存する RNG 状態ではなく seed を必須にする。
+            raise ValueError("noise_seed is required for NoiseSpectrum")
 
     @property
     def amplitude_value(self) -> float:
