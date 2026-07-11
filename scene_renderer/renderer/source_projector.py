@@ -76,7 +76,8 @@ class PlaneWaveProjector(SourceProjector):
     """平面波近似で音源信号を各 CH に投影する。
 
     このクラスは、各経路の到来方向 direction_world を受波器 ArrayFrame に変換し、
-    tau[ch] = r[ch] dot direction_array / c を計算する。Tone 経路では exp(-j 2π f tau[ch]) を掛け、
+    arrival_delay[ch] = -r[ch] dot direction_array / c を計算する。Tone経路では
+    exp(-j 2π f arrival_delay[ch])を掛け、
     広帯域経路では windowed-sinc fractional delay FIR を適用する。
 
     球面波の距離差、絶対伝搬遅延の時間シフト、streaming 状態管理は責務に含めない。
@@ -167,21 +168,28 @@ class PlaneWaveProjector(SourceProjector):
             _validate_center_slice(path.center_slice, path_signal.size, n_sample)
             # 伝搬側は絶対座標までを担当し、投影側で受波器姿勢を用いて ArrayFrame の到来方向へ変換する。
             direction_array = receiver_pose.world_vector_to_array(path.direction_world)
-            # tau[ch] = r[ch] dot u / c。r は [m]、c は [m/s] なので tau は CH ごとの相対遅延 [s]。
-            tau = (element_pos_array @ direction_array) / environment.c
+            # arrival_delay[ch] = -r[ch]・u/c。uはreceiverからsourceへの方向なので、
+            # source側へ位置する素子ほど早着し、基準点相対の到達遅延は負になる。
+            arrival_delay_s = -(element_pos_array @ direction_array) / environment.c
             if path.frequency is not None:
-                out += path.gain * self._project_narrowband(path_signal, path.center_slice, tau, float(path.frequency))
+                out += path.gain * self._project_narrowband(
+                    path_signal, path.center_slice, arrival_delay_s, float(path.frequency)
+                )
                 continue
-            out += path.gain * self._project_broadband(path_signal, path.center_slice, tau, fs)
+            out += path.gain * self._project_broadband(
+                path_signal, path.center_slice, arrival_delay_s, fs
+            )
         return out
 
-    def _project_narrowband(self, signal: Array, center_slice: slice, tau: Array, frequency: float) -> Array:
+    def _project_narrowband(
+        self, signal: Array, center_slice: slice, arrival_delay_s: Array, frequency: float
+    ) -> Array:
         """tone 信号へ CH ごとの位相回転を掛ける。
 
         Args:
             signal: halo 付きまたは中心のみの tone 信号。shape は [n_signal]。
             center_slice: 元 chunk に対応する slice。
-            tau: CH ごとの相対遅延。shape は [n_ch]、単位は s。
+            arrival_delay_s: CHごとの基準点相対到達遅延。shapeは[n_ch]、単位はs。
             frequency: tone 周波数。単位は Hz。
 
         Returns:
@@ -192,18 +200,20 @@ class PlaneWaveProjector(SourceProjector):
         """
 
         center_signal = np.asarray(signal[center_slice], dtype=np.complex64)
-        # 狭帯域 tone では時間領域の小数遅延を、周波数 f における位相回転 exp(-j 2π f tau) で表す。
-        phase = np.exp(-1j * 2.0 * np.pi * frequency * tau).astype(np.complex64)
+        # Fourier規約x(t-tau)↔X(f)exp(-j2πf tau)により、到達遅延をCH位相へ写す。
+        phase = np.exp(-1j * 2.0 * np.pi * frequency * arrival_delay_s).astype(np.complex64)
         # phase[:, np.newaxis] は [n_ch, 1]、center_signal[np.newaxis, :] は [1, n_sample]。
         return phase[:, np.newaxis] * center_signal[np.newaxis, :]
 
-    def _project_broadband(self, signal: Array, center_slice: slice, tau: Array, fs: float) -> Array:
+    def _project_broadband(
+        self, signal: Array, center_slice: slice, arrival_delay_s: Array, fs: float
+    ) -> Array:
         """広帯域信号へ CH ごとの fractional delay FIR を適用する。
 
         Args:
             signal: halo 付き広帯域信号。shape は [n_signal]。
             center_slice: 元 chunk に対応する slice。
-            tau: CH ごとの相対遅延。shape は [n_ch]、単位は s。
+            arrival_delay_s: CHごとの基準点相対到達遅延。shapeは[n_ch]、単位はs。
             fs: サンプリング周波数。単位は Hz。
 
         Returns:
@@ -213,8 +223,8 @@ class PlaneWaveProjector(SourceProjector):
             ValueError: signal の halo が不足している場合。
         """
 
-        # 共通遅延は scene_renderer の責務外なので、min(tau) を基準にして CH 間相対遅延だけを非負遅延として表す。
-        delay_samples = (tau - float(np.min(tau))) * fs
+        # 絶対伝搬遅延は責務外なので、最早着CHを0 sampleとしてCH間相対遅延だけを非負化する。
+        delay_samples = (arrival_delay_s - float(np.min(arrival_delay_s))) * fs
         center_start = _slice_start(center_slice)
         center_stop = _slice_stop(center_slice)
         center_indices = np.arange(center_start, center_stop, dtype=np.int64)

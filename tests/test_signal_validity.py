@@ -229,8 +229,8 @@ def test_narrowband_channel_phase_matches_geometry_for_multiple_conditions(
     signal = SceneRenderer().render(
         Scene([source], [], FreeField(sound_speed)), receiver, np.arange(32, dtype=float) / fs
     )
-    expected_delay_s = spacing_m * np.sin(np.deg2rad(bearing_deg)) / sound_speed
-    expected_phase_rad = -2.0 * np.pi * frequency_hz * expected_delay_s
+    expected_arrival_delay_s = -spacing_m * np.sin(np.deg2rad(bearing_deg)) / sound_speed
+    expected_phase_rad = -2.0 * np.pi * frequency_hz * expected_arrival_delay_s
     measured_phase_rad = float(np.angle(signal[1, 0] / signal[0, 0]))
     # 位相差を[-π,π]へwrapして、角度表現の2π不定性を除いて比較する。
     wrapped_error_rad = float(np.angle(np.exp(1j * (measured_phase_rad - expected_phase_rad))))
@@ -271,11 +271,12 @@ def test_broadband_channel_delay_matches_geometry_in_samples() -> None:
     )
     cross_correlation = np.correlate(signal[1], signal[0], mode="full")
     measured_delay_samples = int(np.argmax(cross_correlation) - (n_sample - 1))
-    assert measured_delay_samples == expected_delay_samples
+    # CH1はsource側で2 sample早着するため、非負化後はCH0がCH1より2 sample遅れる。
+    assert measured_delay_samples == -expected_delay_samples
     # 整数sample遅延条件ではfractional-delay FIRを通しても対応sampleが数値的に一致する。
     np.testing.assert_allclose(
-        signal[1, expected_delay_samples:],
-        signal[0, :-expected_delay_samples],
+        signal[0, expected_delay_samples:],
+        signal[1, :-expected_delay_samples],
         atol=1.0e-6,
     )
 
