@@ -73,7 +73,8 @@ def test_adjacent_phase_difference() -> None:
     axis = np.arange(8) / 32768
     x = SceneRenderer().render(scene, receiver, axis)
 
-    expected_phase = -2.0 * np.pi * f * d / c
+    # source方向側のCH1はd/cだけ早着するため、到達遅延は-d/c、位相は+2πfd/cになる。
+    expected_phase = 2.0 * np.pi * f * d / c
     measured_phase = np.angle(x[1, 0] / x[0, 0])
     np.testing.assert_allclose(measured_phase, expected_phase, atol=1e-6)
 
