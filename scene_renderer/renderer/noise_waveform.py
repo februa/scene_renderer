@@ -133,9 +133,15 @@ def _deterministic_standard_normal(sample_indices: Array, seed: int) -> Array:
 
     indices_uint = np.asarray(sample_indices, dtype=np.int64).astype(np.uint64, copy=False)
     seed_uint = np.uint64(seed & 0xFFFFFFFFFFFFFFFF)
-    # SplitMix64はindexを直接hashするため、呼出順やchunkサイズに依存しない。
-    uniform_1 = _uint64_to_unit_float(_splitmix64(indices_uint ^ seed_uint))
-    uniform_2 = _uint64_to_unit_float(_splitmix64(indices_uint ^ (seed_uint + _SPLITMIX64_INCREMENT)))
+    # 隣接seedをindexへ直接XORすると、seed+chで生成するCH間に相関が残る。
+    # seed自体を先にSplitMix64でhashし、独立性の高いkeyへ写してからsample indexと混合する。
+    seed_key_1 = _splitmix64(np.asarray([seed_uint], dtype=np.uint64))[0]
+    seed_key_2 = _splitmix64(
+        np.asarray([seed_uint ^ _SPLITMIX64_INCREMENT], dtype=np.uint64)
+    )[0]
+    # sample indexを直接hashする性質は維持するため、呼出順やchunkサイズには依存しない。
+    uniform_1 = _uint64_to_unit_float(_splitmix64(indices_uint ^ seed_key_1))
+    uniform_2 = _uint64_to_unit_float(_splitmix64(indices_uint ^ seed_key_2))
     # Box-Muller変換。uniform_1は開区間(0,1)なのでlog(0)を生じない。
     return np.sqrt(-2.0 * np.log(uniform_1)) * np.cos(2.0 * np.pi * uniform_2)
 

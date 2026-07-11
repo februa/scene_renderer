@@ -302,6 +302,28 @@ def test_rank_deficient_three_channel_ambient_covariance_is_reproduced() -> None
     np.testing.assert_allclose(observed_covariance, (1.5**2) * covariance, atol=0.04)
 
 
+def test_default_ambient_covariance_produces_channel_uncorrelated_noise() -> None:
+    """seed+channelで生成する既定背景雑音の非対角相関が0へ近づく。"""
+
+    fs = 4096.0
+    n_sample = 65536
+    n_ch = 8
+    receiver = Receiver(StaticPose([0.0, 0.0, 0.0]), LinearArray(n_ch, 0.1))
+    field = AmbientField(
+        BandLimitedNoiseSpectrum(200.0, 1600.0),
+        amplitude=1.0,
+        noise_seed=500,
+        noise_filter_length=513,
+    )
+    signal = SceneRenderer(dtype=np.float32).render(
+        Scene([], [field], FreeField(1500.0)), receiver, np.arange(n_sample, dtype=float) / fs
+    )
+    correlation = np.corrcoef(signal)
+    off_diagonal = correlation[~np.eye(n_ch, dtype=np.bool_)]
+    # 65536 sampleと帯域制限後の実効自由度に対し、全CH組で絶対相関0.04未満を要求する。
+    assert float(np.max(np.abs(off_diagonal))) < 0.04
+
+
 def test_rendered_pink_noise_psd_follows_inverse_frequency_slope() -> None:
     """pink noiseの実生成PSDが周波数比に対する1/f傾斜を持つ。"""
 
