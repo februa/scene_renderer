@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 
 from scene_renderer.receiver import Receiver
 from scene_renderer.scene import Scene
+from .render_result import RenderedContribution
 
 
 Array: TypeAlias = NDArray[Any]
@@ -46,3 +47,36 @@ class MultiChannelContributor(ABC):
         """
 
         raise NotImplementedError
+
+    def render_contributions(
+        self,
+        scene: Scene,
+        receiver: Receiver,
+        axis_t: Array,
+        fs: float,
+    ) -> tuple[RenderedContribution, ...]:
+        """このcontributorが生成する寄与を成分情報付きで返す。
+
+        Args:
+            scene: 音場定義。
+            receiver: 受波器定義。
+            axis_t: 時間軸。shapeは[n_sample]、単位はs。
+            fs: サンプリング周波数。単位はHz。
+
+        Returns:
+            寄与tuple。各signalのshapeは[n_ch, n_sample]。
+
+        Raises:
+            `render`実装が送出する例外を伝搬する。
+
+        個別成分を提供しない独自contributorにも互換性を保つため、既定実装ではaggregate寄与を1件返す。
+        """
+
+        return (
+            RenderedContribution(
+                identifier=type(self).__name__,
+                role="unspecified",
+                kind="custom",
+                signal=self.render(scene=scene, receiver=receiver, axis_t=axis_t, fs=fs),
+            ),
+        )

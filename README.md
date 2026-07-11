@@ -64,6 +64,8 @@ pip install git+https://github.com/februa/scene_renderer.git
   - 最小構成の `Scene + Receiver -> x[ch, t]` を生成する例
 - [examples/example_config_api.py](./examples/example_config_api.py)
   - 上位設定 API から `AcousticSource` を組み立てる例
+- [examples/example_component_rendering.py](./examples/example_component_rendering.py)
+  - RMS SL・ASD NLを指定し、target/interference/noiseを成分別に得る例
 
 最小 example の実行:
 
@@ -121,6 +123,57 @@ scene = Scene(
 axis_t = np.arange(32768) / 32768
 x = SceneRenderer().render(scene, receiver, axis_t)
 ```
+
+## RMS SL・ASD NLと成分別レンダリング
+
+`SourceComponent.amplitude`は従来どおり線形振幅を直接指定する低水準APIである。実正弦波の
+RMS source levelを指定する場合は、RMSとpeakを混同しないため次の生成関数を使う。
+
+```python
+component = tone_component_from_rms_level_db(
+    frequency_hz=1000.0,
+    level_db_re_rms=0.0,
+    envelope=ConstantEnvelope(),
+)
+```
+
+このとき複素toneの振幅は `sqrt(2)` であり、実部の時間RMSが1になる。
+
+背景雑音の`NL`をone-sided amplitude spectral densityとして指定する場合、物理帯域幅を
+明示する。`bandwidth_hz`はFFT長やbin数ではなく、RMSへ積分する帯域幅である。
+
+```python
+ambient = AmbientField.from_asd_level_db(
+    spectrum=BandLimitedNoiseSpectrum(100.0, 356.0),
+    level_db_re_rms_per_sqrt_hz=-32.0,
+    bandwidth_hz=256.0,
+    noise_seed=1234,
+    identifier="ambient",
+    role="noise",
+)
+```
+
+変換は次の定義に従う。
+
+```text
+tone RMS amplitude                 = 10^(SL/20)
+real-tone peak amplitude           = sqrt(2) * 10^(SL/20)
+noise RMS in one-sided band B [Hz] = 10^(NL/20) * sqrt(B)
+```
+
+target、interference、noiseなどを同じsceneから分離する場合は`render_components`を使う。
+
+```python
+rendered = SceneRenderer(dtype=np.float32).render_components(scene, receiver, axis_t)
+x_mixed = rendered.mixed
+x_target = rendered.sum_by_role("target")
+x_interference = rendered.sum_by_role("interference")
+x_noise = rendered.sum_by_role("noise")
+```
+
+`SceneRenderer`は寄与の合成だけを担当し、音源波形、伝搬、アレイ投影、背景雑音生成は従来どおり
+各renderer/contributorへ委譲する。共分散推定、ビームフォーミング、BL評価は本ライブラリの
+責務に含めない。
 
 ## 開発コマンド
 

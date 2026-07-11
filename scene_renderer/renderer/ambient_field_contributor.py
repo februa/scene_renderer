@@ -9,6 +9,7 @@ from scene_renderer.scene import Scene
 
 from .ambient_renderer import AmbientFieldRenderer
 from .contributor import MultiChannelContributor
+from .render_result import RenderedContribution
 
 
 Array: TypeAlias = NDArray[Any]
@@ -68,4 +69,36 @@ class AmbientFieldContributor(MultiChannelContributor):
             receiver=receiver,
             axis_t=axis_t,
             fs=fs,
+        )
+
+    def render_contributions(
+        self, scene: Scene, receiver: Receiver, axis_t: Array, fs: float
+    ) -> tuple[RenderedContribution, ...]:
+        """背景雑音場ごとの多CH寄与を返す。
+
+        Args:
+            scene: 背景雑音場を含む音場定義。
+            receiver: 受波器定義。
+            axis_t: 時間軸。shapeは[n_sample]、単位はs。
+            fs: サンプリング周波数。単位はHz。
+
+        Returns:
+            背景場ごとの寄与tuple。各signal shapeは[n_ch, n_sample]。
+
+        Raises:
+            identifier重複または背景雑音生成条件が不正な場合。
+        """
+
+        return tuple(
+            RenderedContribution(
+                identifier=(
+                    field.identifier
+                    if sum(item.identifier == field.identifier for item in scene.ambient_fields) == 1
+                    else f"{field.identifier}[{field_index}]"
+                ),
+                role=field.role,
+                kind="ambient",
+                signal=self.ambient_renderer.render_field(field, receiver, axis_t, fs),
+            )
+            for field_index, field in enumerate(scene.ambient_fields)
         )

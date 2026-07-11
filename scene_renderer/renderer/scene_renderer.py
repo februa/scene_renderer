@@ -13,6 +13,7 @@ from .ambient_field_contributor import AmbientFieldContributor
 from .contributor import MultiChannelContributor
 from .sensor_noise_contributor import SensorNoiseContributor
 from .source_field_contributor import SourceFieldContributor
+from .render_result import RenderedContribution, RenderedScene
 
 
 Array: TypeAlias = NDArray[Any]
@@ -75,39 +76,79 @@ class SceneRenderer:
             ValueError: axis_t が 1 次元でない、空、1 サンプル、非単調、非等間隔、または contributor 出力 shape が不一致の場合。
         """
 
+        return self.render_components(scene, receiver, axis_t).mixed
+
+    def render_components(self, scene: Scene, receiver: Receiver, axis_t: Array) -> RenderedScene:
+        """Sceneを1回の公開呼出しで描画し、物理寄与ごとの受信信号も返す。
+
+        Args:
+            scene: 音場定義。音源、背景雑音場、伝搬環境を含む。
+            receiver: 受波器定義。array.positions() shapeは[n_ch, 3]、単位はm。
+            axis_t: 時間軸。shapeは[n_sample]、単位はs。厳密単調増加かつ等間隔。
+
+        Returns:
+            `RenderedScene`。mixed shapeは[n_ch, n_sample]、time_s shapeは[n_sample]、
+            receiver_positions_m shapeは[n_ch, 3]。
+
+        Raises:
+            ValueError: 時間軸、identifier一意性、寄与shapeが不正な場合。
+
+        個別波形生成や伝搬はcontributorへ委譲し、このメソッドは同じ[ch,t]格子への加算だけを担う。
+        """
+
         axis_t_array = _validate_axis_t(axis_t)
         fs = _derive_fs(axis_t_array)
-        n_ch = receiver.array.positions().shape[0]
+        receiver_positions_m = np.asarray(receiver.array.positions(), dtype=float)
+        n_ch = receiver_positions_m.shape[0]
         n_sample = axis_t_array.size
 
         out = np.zeros((n_ch, n_sample), dtype=np.complex64)
         has_complex_contribution = False
+        rendered_contributions: list[RenderedContribution] = []
         for contributor in self.contributors:
-            contribution = np.asarray(
-                contributor.render(
-                    scene=scene,
-                    receiver=receiver,
-                    axis_t=axis_t_array,
-                    fs=fs,
-                )
-            )
-            if contribution.shape != out.shape:
-                raise ValueError(f"contributor output must have shape {out.shape}, got {contribution.shape}")
-            # contributor ごとの返り値を [ch, t] の複素配列へ正規化してから線形加算する。
-            if np.iscomplexobj(contribution) and bool(np.any(np.abs(np.imag(contribution)) > 0.0)):
-                has_complex_contribution = True
-            out += contribution.astype(np.complex64, copy=False)
+            components = contributor.render_contributions(scene, receiver, axis_t_array, fs)
+            for component in components:
+                contribution = np.asarray(component.signal)
+                if contribution.shape != out.shape:
+                    raise ValueError(f"contributor output must have shape {out.shape}, got {contribution.shape}")
+                # contributorごとの返り値を[ch,t]複素配列へ正規化してから線形加算する。
+                if np.iscomplexobj(contribution) and bool(np.any(np.abs(np.imag(contribution)) > 0.0)):
+                    has_complex_contribution = True
+                out += contribution.astype(np.complex64, copy=False)
+                rendered_contributions.append(component)
 
+        mixed: Array
         if self.dtype == np.dtype(np.float32):
             if has_complex_contribution:
                 warnings.warn(
                     "Complex contributions detected; imaginary parts are discarded in float32 output.",
                     stacklevel=2,
                 )
-            return np.asarray(np.real(out), dtype=np.float32)
-        if self.dtype != np.dtype(np.complex64):
-            return out.astype(self.dtype)
-        return out
+            mixed = np.asarray(np.real(out), dtype=np.float32)
+        elif self.dtype != np.dtype(np.complex64):
+            mixed = out.astype(self.dtype)
+        else:
+            mixed = out
+        # mixedとcomponentsは同じdtypeで加法整合させる。float出力では各成分も同じ規約で実部化する。
+        normalized_components = tuple(
+            RenderedContribution(
+                identifier=component.identifier,
+                role=component.role,
+                kind=component.kind,
+                signal=np.asarray(
+                    np.real(component.signal) if self.dtype == np.dtype(np.float32) else component.signal,
+                    dtype=self.dtype,
+                ),
+            )
+            for component in rendered_contributions
+        )
+        return RenderedScene(
+            mixed=mixed,
+            components=normalized_components,
+            time_s=axis_t_array,
+            receiver_positions_m=receiver_positions_m,
+            sampling_frequency_hz=fs,
+        )
 
 
 def _validate_axis_t(axis_t: Array) -> Array:
