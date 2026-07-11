@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 
 from scene_renderer import (
@@ -136,15 +138,15 @@ def test_ambient_noise_is_chunk_partition_independent() -> None:
 
 
 def test_ambient_field_asd_factory_keeps_bandwidth_definition_explicit() -> None:
-    """ASD指定APIがFFT分解能ではなく物理帯域幅からRMSを決める。"""
+    """ASD指定APIがSpectrumだけを帯域の正本としてRMSを決める。"""
 
     field = AmbientField.from_asd_level_db(
         spectrum=BandLimitedNoiseSpectrum(100.0, 356.0),
         level_db_re_rms_per_sqrt_hz=-32.0,
-        bandwidth_hz=256.0,
         noise_seed=10,
     )
     np.testing.assert_allclose(field.amplitude, 10.0 ** (-32.0 / 20.0) * np.sqrt(256.0))
+    assert "bandwidth_hz" not in inspect.signature(AmbientField.from_asd_level_db).parameters
 
 
 def test_ambient_noise_observed_asd_matches_input_level() -> None:
@@ -156,7 +158,6 @@ def test_ambient_noise_observed_asd_matches_input_level() -> None:
     field = AmbientField.from_asd_level_db(
         spectrum=BandLimitedNoiseSpectrum(256.0, 1280.0),
         level_db_re_rms_per_sqrt_hz=-32.0,
-        bandwidth_hz=1024.0,
         noise_seed=2468,
         noise_filter_length=513,
     )

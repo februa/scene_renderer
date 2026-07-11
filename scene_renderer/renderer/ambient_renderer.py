@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 
 from scene_renderer.receiver import Receiver
 from scene_renderer.scene import AmbientField, NoiseSpectrum
-from .source_renderer import _render_indexed_noise, _sample_index_from_time
+from .noise_waveform import render_indexed_noise, sample_index_from_time
 
 
 Array: TypeAlias = NDArray[Any]
@@ -101,10 +101,10 @@ class AmbientFieldRenderer:
         eigenvalues, eigenvectors = np.linalg.eigh(covariance)
         # __post_init__で半正定値を確認済みだが、丸め由来の微小負値は平方根のNaNを避けるため0へ丸める。
         covariance_factor = eigenvectors @ np.diag(np.sqrt(np.maximum(eigenvalues, 0.0)))
-        start_sample_index = _sample_index_from_time(float(axis_t_array[0]), fs)
+        start_sample_index = sample_index_from_time(float(axis_t_array[0]), fs)
         independent = np.stack(
             [
-                _render_indexed_noise(
+                render_indexed_noise(
                     spectrum=field.spectrum,
                     start_sample_index=start_sample_index,
                     n_sample=axis_t_array.size,

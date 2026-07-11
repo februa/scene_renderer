@@ -50,7 +50,6 @@ def main() -> None:
     ambient = AmbientField.from_asd_level_db(
         spectrum=BandLimitedNoiseSpectrum(100.0, 3000.0),
         level_db_re_rms_per_sqrt_hz=-32.0,
-        bandwidth_hz=2900.0,
         noise_seed=1234,
         identifier="ambient",
         role="noise",
