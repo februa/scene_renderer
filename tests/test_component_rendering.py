@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 
 import numpy as np
+import pytest
 
 from scene_renderer import (
     AcousticSource,
@@ -55,9 +56,11 @@ def test_tone_rms_factory_produces_unit_rms_real_waveform() -> None:
         identifier="target",
         role="target",
     )
-    rendered = SceneRenderer(dtype=np.float32).render_components(
-        Scene([source], [], FreeField(1500.0)), receiver, axis_t
-    )
+    # complex解析toneを実信号へ変換する指定なので、虚部破棄warningも公開契約として確認する。
+    with pytest.warns(UserWarning, match="imaginary parts are discarded"):
+        rendered = SceneRenderer(dtype=np.float32).render_components(
+            Scene([source], [], FreeField(1500.0)), receiver, axis_t
+        )
     np.testing.assert_allclose(np.sqrt(np.mean(rendered.mixed[0] ** 2)), 1.0, atol=1.0e-6)
 
 

@@ -175,6 +175,34 @@ x_noise = rendered.sum_by_role("noise")
 各renderer/contributorへ委譲する。共分散推定、ビームフォーミング、BL評価は本ライブラリの
 責務に含めない。
 
+## 生成信号の定量検証
+
+狭帯域・広帯域・雑音を同じRMS power規約で検証するため、one-sided FFT診断APIを提供する。
+
+```python
+metrics = calculate_one_sided_rms_spectrum(real_signal, sampling_frequency_hz=8192.0)
+band = evaluate_one_sided_band(
+    metrics,
+    f_low_hz=900.0,
+    f_high_hz=1100.0,
+    reference_rms=1.0,
+)
+
+print(metrics.time_rms)
+print(metrics.spectrum_rms)
+print(metrics.parseval_relative_error)
+print(band.band_rms)
+print(band.band_level_db_re_reference_rms)
+print(band.mean_asd_level_db_re_reference_rms_per_sqrt_hz)
+```
+
+`rms_power_per_bin`は、DCとNyquistを除くinterior positive binだけを2倍する。全binのpower和は
+時間領域mean-squareへ一致する。狭帯域toneも広帯域雑音も、入力が占有する物理帯域のbin powerを
+加算してRMSを評価する。
+
+Tone周波数は`0 < f < fs/2`、NoiseSpectrumの上端は`f <= fs/2`を要求する。Nyquist外を暗黙に
+aliasまたは切り捨てるとSL/NLと生成levelが不一致になるため、レンダリング時に`ValueError`とする。
+
 ## 開発コマンド
 
 ```bash

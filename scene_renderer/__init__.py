@@ -26,6 +26,12 @@ from scene_renderer.level import (
     tone_rms_level_db_to_peak_amplitude,
     white_noise_asd_level_db_to_sample_rms,
 )
+from scene_renderer.signal_validation import (
+    BandRmsMetrics,
+    OneSidedRmsSpectrum,
+    calculate_one_sided_rms_spectrum,
+    evaluate_one_sided_band,
+)
 
 __version__ = "0.1.0"
 
@@ -58,5 +64,9 @@ __all__ = [
     "tone_rms_level_db_to_peak_amplitude",
     "noise_asd_level_db_to_band_rms",
     "white_noise_asd_level_db_to_sample_rms",
+    "BandRmsMetrics",
+    "OneSidedRmsSpectrum",
+    "calculate_one_sided_rms_spectrum",
+    "evaluate_one_sided_band",
     "__version__",
 ]
