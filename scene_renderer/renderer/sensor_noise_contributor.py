@@ -9,6 +9,7 @@ from scene_renderer.scene import Scene
 
 from .contributor import MultiChannelContributor
 from .sensor_noise import SensorNoiseGenerator
+from .render_result import RenderedContribution
 
 
 Array: TypeAlias = NDArray[Any]
@@ -68,4 +69,31 @@ class SensorNoiseContributor(MultiChannelContributor):
             receiver=receiver,
             axis_t=axis_t,
             fs=fs,
+        )
+
+    def render_contributions(
+        self, scene: Scene, receiver: Receiver, axis_t: Array, fs: float
+    ) -> tuple[RenderedContribution, ...]:
+        """センサ自己雑音を成分情報付きで返す。
+
+        Args:
+            scene: 音場定義。センサ雑音生成には使用しない。
+            receiver: 受波器定義。
+            axis_t: 時間軸。shapeは[n_sample]、単位はs。
+            fs: サンプリング周波数。単位はHz。
+
+        Returns:
+            sensor_noise寄与1件。signal shapeは[n_ch, n_sample]。
+
+        Raises:
+            SensorNoiseGeneratorが送出する例外を伝搬する。
+        """
+
+        return (
+            RenderedContribution(
+                identifier="sensor_noise",
+                role="noise",
+                kind="sensor",
+                signal=self.render(scene=scene, receiver=receiver, axis_t=axis_t, fs=fs),
+            ),
         )

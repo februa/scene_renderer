@@ -10,6 +10,7 @@ from .source_projector import NarrowbandPlaneWaveProjector, PlaneWaveProjector, 
 from .ambient_renderer import AmbientFieldRenderer
 from .sensor_noise import SensorNoiseGenerator
 from .propagation import PropagatedSource, PropagationPath, PropagationModel, FreeFieldPropagation
+from .render_result import RenderedContribution, RenderedScene
 
 __all__ = [
     "SceneRenderer",
@@ -30,4 +31,6 @@ __all__ = [
     "PropagationPath",
     "PropagationModel",
     "FreeFieldPropagation",
+    "RenderedContribution",
+    "RenderedScene",
 ]

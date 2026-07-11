@@ -4,6 +4,7 @@ from .source import (
     SourceComponent,
     unit_vector_from_absolute_bearing,
     unit_vector_from_relative_bearing,
+    tone_component_from_rms_level_db,
 )
 from .ambient import AmbientField
 from .environment import Environment, FreeField
@@ -23,6 +24,7 @@ __all__ = [
     "SourceComponent",
     "unit_vector_from_absolute_bearing",
     "unit_vector_from_relative_bearing",
+    "tone_component_from_rms_level_db",
     "AmbientField",
     "Environment",
     "FreeField",

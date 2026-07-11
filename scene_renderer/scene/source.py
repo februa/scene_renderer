@@ -7,8 +7,9 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .envelope import Envelope
-from .spectrum import NoiseSpectrum, Spectrum
+from .spectrum import NoiseSpectrum, Spectrum, ToneSpectrum
 from .trajectory import Pose, StaticPosition, Trajectory
+from scene_renderer.level import tone_rms_level_db_to_peak_amplitude
 
 
 VectorArray: TypeAlias = NDArray[Any]
@@ -181,18 +182,32 @@ class AcousticSource:
 
     trajectory: Trajectory
     components: list[SourceComponent]
+    identifier: str = "source"
+    role: str = "source"
+
+    def __post_init__(self) -> None:
+        """音源を成分分離結果で識別するための文字列を検証する。"""
+
+        if not self.identifier.strip():
+            raise ValueError("identifier must not be empty")
+        if not self.role.strip():
+            raise ValueError("role must not be empty")
 
     @classmethod
     def from_position(
         cls,
         position_world: ArrayLike,
         components: list[SourceComponent],
+        identifier: str = "source",
+        role: str = "source",
     ) -> "AcousticSource":
         """WorldFrame 直交座標で固定音源を作成する。
 
         Args:
             position_world: 音源位置。shape は [3]、成分は [East, North, Up]、単位は m。
             components: 音源成分リスト。各成分は同じ位置から放射される。
+            identifier: 成分分離結果で音源個体を識別する非空文字列。
+            role: target、interferenceなど後段分類用の非空文字列。
 
         Returns:
             AcousticSource。内部 trajectory は StaticPosition。
@@ -201,7 +216,12 @@ class AcousticSource:
             ValueError: position_world が shape [3] でない場合。
         """
 
-        return cls(trajectory=StaticPosition(position_world), components=components)
+        return cls(
+            trajectory=StaticPosition(position_world),
+            components=components,
+            identifier=identifier,
+            role=role,
+        )
 
     @classmethod
     def from_absolute_bearing(
@@ -211,6 +231,8 @@ class AcousticSource:
         receiver_pose: Pose,
         components: list[SourceComponent],
         elevation_deg: float = 0.0,
+        identifier: str = "source",
+        role: str = "source",
     ) -> "AcousticSource":
         """受波器位置から絶対方位・距離で固定音源を作成する。
 
@@ -220,6 +242,8 @@ class AcousticSource:
             receiver_pose: 距離原点となる受波器 Pose。position_world は shape [3]、単位 m。
             components: 音源成分リスト。
             elevation_deg: 仰角。単位は deg。水平面を 0、上向きを正とする。
+            identifier: 成分分離結果で音源個体を識別する非空文字列。
+            role: target、interferenceなど後段分類用の非空文字列。
 
         Returns:
             AcousticSource。音源位置は receiver_pose.position_world + distance * direction_world。
@@ -234,7 +258,7 @@ class AcousticSource:
         receiver_position_world = np.asarray(receiver_pose.position_world, dtype=float)
         # direction_world は無次元単位ベクトルなので、distance [m] を掛けて WorldFrame 位置差 [m] にする。
         position_world = receiver_position_world + distance * direction_world
-        return cls.from_position(position_world, components)
+        return cls.from_position(position_world, components, identifier=identifier, role=role)
 
     @classmethod
     def from_relative_bearing(
@@ -244,6 +268,8 @@ class AcousticSource:
         receiver_pose: Pose,
         components: list[SourceComponent],
         elevation_deg: float = 0.0,
+        identifier: str = "source",
+        role: str = "source",
     ) -> "AcousticSource":
         """受波器 ArrayFrame の相対方位・距離で固定音源を作成する。
 
@@ -253,6 +279,8 @@ class AcousticSource:
             receiver_pose: ArrayFrame から WorldFrame への変換を与える Pose。
             components: 音源成分リスト。
             elevation_deg: 仰角。単位は deg。ArrayFrame 水平面を 0、上向きを正とする。
+            identifier: 成分分離結果で音源個体を識別する非空文字列。
+            role: target、interferenceなど後段分類用の非空文字列。
 
         Returns:
             AcousticSource。内部位置は WorldFrame の shape [3]、単位 m。
@@ -268,4 +296,32 @@ class AcousticSource:
         direction_world = receiver_pose.array_vector_to_world(direction_array)
         receiver_position_world = np.asarray(receiver_pose.position_world, dtype=float)
         position_world = receiver_position_world + distance * direction_world
-        return cls.from_position(position_world, components)
+        return cls.from_position(position_world, components, identifier=identifier, role=role)
+
+
+def tone_component_from_rms_level_db(
+    frequency_hz: float,
+    level_db_re_rms: float,
+    envelope: Envelope,
+) -> SourceComponent:
+    """RMS levelを明示して実正弦波に対応するtone成分を作る。
+
+    Args:
+        frequency_hz: tone周波数。単位はHz。
+        level_db_re_rms: tone RMS level。単位はdB re amplitude 1 RMS。
+        envelope: 時間包絡。shape [n_sample]の時間軸を同じshapeへ写す。
+
+    Returns:
+        `SourceRenderer`の複素toneを実部化したとき、指定RMSとなる`SourceComponent`。
+
+    Raises:
+        ValueError: levelが有限でない場合。
+
+    位置、伝搬、受波器はこの関数の責務に含めない。
+    """
+
+    return SourceComponent(
+        spectrum=ToneSpectrum(frequency_hz),
+        envelope=envelope,
+        amplitude=tone_rms_level_db_to_peak_amplitude(level_db_re_rms),
+    )

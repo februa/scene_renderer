@@ -17,9 +17,15 @@ from scene_renderer.scene import (
     Trajectory,
     StaticPose,
     StaticPosition,
+    tone_component_from_rms_level_db,
 )
 from scene_renderer.receiver import Receiver, ArrayGeometry, LinearArray
-from scene_renderer.renderer import SceneRenderer
+from scene_renderer.renderer import RenderedContribution, RenderedScene, SceneRenderer
+from scene_renderer.level import (
+    noise_asd_level_db_to_band_rms,
+    tone_rms_level_db_to_peak_amplitude,
+    white_noise_asd_level_db_to_sample_rms,
+)
 
 __version__ = "0.1.0"
 
@@ -46,5 +52,11 @@ __all__ = [
     "ArrayGeometry",
     "LinearArray",
     "SceneRenderer",
+    "RenderedContribution",
+    "RenderedScene",
+    "tone_component_from_rms_level_db",
+    "tone_rms_level_db_to_peak_amplitude",
+    "noise_asd_level_db_to_band_rms",
+    "white_noise_asd_level_db_to_sample_rms",
     "__version__",
 ]
