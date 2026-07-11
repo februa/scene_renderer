@@ -6,7 +6,7 @@ from typing import Any, TypeAlias
 import numpy as np
 from numpy.typing import NDArray
 
-from .spectrum import Spectrum
+from .spectrum import BandLimitedNoiseSpectrum, Spectrum
 from scene_renderer.level import noise_asd_level_db_to_band_rms
 
 
@@ -78,9 +78,8 @@ class AmbientField:
     @classmethod
     def from_asd_level_db(
         cls,
-        spectrum: Spectrum,
+        spectrum: BandLimitedNoiseSpectrum,
         level_db_re_rms_per_sqrt_hz: float,
-        bandwidth_hz: float,
         *,
         covariance: Array | None = None,
         noise_seed: int,
@@ -91,10 +90,10 @@ class AmbientField:
         """one-sided ASD levelから背景雑音場を作成する。
 
         Args:
-            spectrum: 雑音整形スペクトル。レンダリング時はNoiseSpectrumを要求する。
+            spectrum: 平坦なASDを持つ帯域制限雑音スペクトル。帯域幅は
+                `f_high_hz - f_low_hz`から導出する。
             level_db_re_rms_per_sqrt_hz: one-sided ASD level。単位は
                 dB re amplitude 1 RMS/sqrt(Hz)。
-            bandwidth_hz: RMSへ積分するone-sided帯域幅。単位はHz。
             covariance: CH間の無次元共分散。shapeは[n_ch, n_ch]。Noneは単位行列。
             noise_seed: sample index依存の決定論的雑音seed。
             noise_filter_length: スペクトル整形FIR長。奇数かつ3以上。
@@ -107,9 +106,11 @@ class AmbientField:
         Raises:
             ValueError: level、帯域幅、共分散、FIR長、識別子が不正な場合。
 
-        FFT長やbin幅は責務に含めず、物理帯域幅Bに対してA=10^(NL/20)sqrt(B)を適用する。
+        FFT長やbin幅は責務に含めない。帯域の正本をspectrumへ一本化し、
+        B=f_high_hz-f_low_hzに対してA=10^(NL/20)sqrt(B)を適用する。
         """
 
+        bandwidth_hz = float(spectrum.f_high_hz - spectrum.f_low_hz)
         return cls(
             spectrum=spectrum,
             amplitude=noise_asd_level_db_to_band_rms(level_db_re_rms_per_sqrt_hz, bandwidth_hz),

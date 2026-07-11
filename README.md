@@ -139,14 +139,14 @@ component = tone_component_from_rms_level_db(
 
 このとき複素toneの振幅は `sqrt(2)` であり、実部の時間RMSが1になる。
 
-背景雑音の`NL`をone-sided amplitude spectral densityとして指定する場合、物理帯域幅を
-明示する。`bandwidth_hz`はFFT長やbin数ではなく、RMSへ積分する帯域幅である。
+背景雑音の`NL`をone-sided amplitude spectral densityとして指定する場合、物理帯域は
+`BandLimitedNoiseSpectrum`だけで指定する。帯域幅は`f_high_hz - f_low_hz`から導出され、
+別引数との不一致は起こらない。
 
 ```python
 ambient = AmbientField.from_asd_level_db(
     spectrum=BandLimitedNoiseSpectrum(100.0, 356.0),
     level_db_re_rms_per_sqrt_hz=-32.0,
-    bandwidth_hz=256.0,
     noise_seed=1234,
     identifier="ambient",
     role="noise",
