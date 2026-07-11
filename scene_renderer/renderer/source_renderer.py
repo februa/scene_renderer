@@ -86,6 +86,9 @@ class SourceRenderer:
                     raise ValueError(f"envelope must have shape {extended_axis_t.shape}, got {envelope.shape}")
                 if isinstance(component.spectrum, ToneSpectrum):
                     frequency = float(component.spectrum.frequency)
+                    # RMS toneのcrest factor √2はDC/Nyquistでは成立しないため、表現可能な開区間だけを許す。
+                    if not np.isfinite(frequency) or frequency <= 0.0 or frequency >= fs_value / 2.0:
+                        raise ValueError("tone frequency must satisfy 0 < frequency < Nyquist")
                     # 狭帯域toneはs(t)=A env(t) exp(j 2πft)。絶対時刻によりchunk間位相を保つ。
                     signal = component.amplitude_value * envelope * np.exp(
                         1j * 2.0 * np.pi * frequency * extended_axis_t

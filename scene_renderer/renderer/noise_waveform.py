@@ -7,7 +7,12 @@ from typing import Any, TypeAlias
 import numpy as np
 from numpy.typing import NDArray
 
-from scene_renderer.scene import NoiseSpectrum
+from scene_renderer.scene import (
+    BandLimitedNoiseSpectrum,
+    CustomNoiseSpectrum,
+    NoiseSpectrum,
+    PinkNoiseSpectrum,
+)
 
 
 Array: TypeAlias = NDArray[Any]
@@ -78,6 +83,7 @@ def render_indexed_noise(
         raise ValueError("fs must be positive")
     if filter_length < 3 or filter_length % 2 == 0:
         raise ValueError("filter_length must be an odd integer greater than or equal to 3")
+    validate_noise_spectrum_for_sampling(spectrum, fs)
     half = filter_length // 2
     white_start = start_sample_index - half
     white_indices = np.arange(white_start, white_start + n_sample + filter_length - 1, dtype=np.int64)
@@ -88,6 +94,38 @@ def render_indexed_noise(
     if shaped.shape != (n_sample,):
         raise ValueError(f"internal noise convolution returned unexpected shape {shaped.shape}")
     return np.asarray(shaped, dtype=np.float64)
+
+
+def validate_noise_spectrum_for_sampling(spectrum: NoiseSpectrum, fs: float) -> None:
+    """NoiseSpectrumの全定義周波数がNyquist内にあることを検証する。
+
+    Args:
+        spectrum: 帯域制限、pink、またはtable指定のNoiseSpectrum。
+        fs: サンプリング周波数。単位はHz。
+
+    Returns:
+        なし。
+
+    Raises:
+        ValueError: fsが不正、または定義周波数がNyquistを超える場合。
+        NotImplementedError: 周波数上端を解釈できないNoiseSpectrum実装の場合。
+
+    Nyquist外の帯域を暗黙に切り捨てると、ASDから換算した帯域RMSと実際の生成帯域が不一致になる。
+    そのため、FIR設計前にscene条件の誤りとして拒否する。
+    """
+
+    if not np.isfinite(fs) or fs <= 0.0:
+        raise ValueError("fs must be finite and positive")
+    if isinstance(spectrum, (BandLimitedNoiseSpectrum, PinkNoiseSpectrum)):
+        maximum_frequency_hz = float(spectrum.f_high_hz)
+    elif isinstance(spectrum, CustomNoiseSpectrum):
+        maximum_frequency_hz = float(np.max(np.asarray(spectrum.frequencies_hz, dtype=float)))
+    else:
+        raise NotImplementedError("NoiseSpectrum sampling validation is not defined for this spectrum type")
+    if maximum_frequency_hz > fs / 2.0:
+        raise ValueError(
+            f"noise spectrum maximum frequency {maximum_frequency_hz} Hz exceeds Nyquist {fs / 2.0} Hz"
+        )
 
 
 def _deterministic_standard_normal(sample_indices: Array, seed: int) -> Array:
