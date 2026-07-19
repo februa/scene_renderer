@@ -18,42 +18,90 @@
 
 依存関係の正本は [pyproject.toml](./pyproject.toml) です。
 
-## インストール
+## GitHubリポジトリから外部projectへインストールする
 
-### GitHub から clone してインストールする
+`scene_renderer`を使用するprojectのdirectoryで、GitHubリポジトリを依存元として
+登録する。Python 3.10以上とGitが必要である。
 
-通常は以下の手順で clone して editable install します。
+package metadata上の配布名は`scene-renderer`、Pythonのimport名は`scene_renderer`である。
+以下では、意図したリポジトリから取得することを明確にするため、GitHub URLを含む
+direct referenceを使用する。
+
+### uvを使用する
+
+新しいprojectを作成し、GitHub上の`scene-renderer`を依存関係に追加する。
+
+```bash
+mkdir my_project
+cd my_project
+uv init --python ">=3.10"
+uv add "scene-renderer @ git+https://github.com/februa/scene_renderer.git"
+```
+
+`uv add`は`pyproject.toml`にGitHub依存を追加し、解決したcommitを`uv.lock`に記録する。
+lock fileをversion controlに含め、実行時は`uv run`を使用する。
+
+```bash
+uv run python -c "import scene_renderer; print(scene_renderer.__version__)"
+```
+
+### venvとpipを使用する
+
+project専用のvirtual environmentを作成し、GitHub URLからインストールする。
+
+```bash
+mkdir my_project
+cd my_project
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install "scene-renderer @ git+https://github.com/februa/scene_renderer.git"
+python -c "import scene_renderer; print(scene_renderer.__version__)"
+```
+
+requirements fileで管理する場合は、次のdirect referenceを記載する。
+
+```text
+scene-renderer @ git+https://github.com/februa/scene_renderer.git
+```
+
+### 参照するversionを固定する
+
+長期間再現する必要がある場合は、default branchの最新状態ではなく、
+release tagまたはfull commit hashをGitHub URLの末尾に指定する。
+
+```bash
+uv add "scene-renderer @ git+https://github.com/februa/scene_renderer.git@FULL_COMMIT_HASH"
+```
+
+pipやrequirements fileでも同じdirect referenceを使用できる。
+
+```text
+scene-renderer @ git+https://github.com/februa/scene_renderer.git@FULL_COMMIT_HASH
+```
+
+### local checkoutをeditable installする
+
+別のprojectを開発しながら`scene_renderer`本体も変更する場合は、先にrepositoryをcloneし、
+外部project側からlocal checkoutをeditable dependencyとして登録する。
+
+```bash
+git clone https://github.com/februa/scene_renderer.git /path/to/scene_renderer
+cd /path/to/my_project
+uv add --editable /path/to/scene_renderer
+```
+
+pipの場合は、有効化したproject専用virtual environmentにeditable installする。
+
+```bash
+python -m pip install --editable /path/to/scene_renderer
+```
+
+本リポジトリ自体を開発する場合は、開発用依存も含めてeditable installする。
 
 ```bash
 git clone https://github.com/februa/scene_renderer.git
 cd scene_renderer
-pip install -e .
-```
-
-開発用依存も含めて入れる場合は以下です。
-
-```bash
-git clone https://github.com/februa/scene_renderer.git
-cd scene_renderer
-pip install -e ".[dev]"
-```
-
-### 既に clone 済みのローカルパスからインストールする
-
-```bash
-pip install -e /path/to/scene_renderer
-```
-
-依存込みで開発用に入れる場合は以下です。
-
-```bash
-pip install -e "/path/to/scene_renderer[dev]"
-```
-
-### Git URL から直接インストールする
-
-```bash
-pip install git+https://github.com/februa/scene_renderer.git
+python -m pip install --editable ".[dev]"
 ```
 
 ## examples
